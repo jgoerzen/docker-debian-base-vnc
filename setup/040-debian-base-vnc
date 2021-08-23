@@ -6,7 +6,7 @@ set -x
 mv /usr/sbin/policy-rc.d.disabled /usr/sbin/policy-rc.d
 apt-get update
 apt-get -y --no-install-recommends install \
-        tightvncserver xfonts-base lwm xterm xdotool xvnc4viewer
+        tightvncserver xfonts-base lwm xterm xdotool tigervnc-viewer
 
 apt-get -y -u dist-upgrade
 apt-get clean
