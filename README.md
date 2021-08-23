@@ -10,7 +10,7 @@ Unix APIs (including syslog, zombie process collection, etc.)
 
 Despite this, they are all very small, both in terms of disk and RAM usage.
 
-You can find a [description of the motivation for these images](http://changelog.complete.org/archives/9794-fixing-the-problems-with-docker-images) on my blog.
+You can find a [description of the motivation for these images](https://changelog.complete.org/archives/9794-fixing-the-problems-with-docker-images) on my blog.
 
 This is loosely based on the concepts, but not the code, in the
 [phusion baseimage-docker](https://github.com/phusion/baseimage-docker).
@@ -19,12 +19,12 @@ You can look at that link for additional discussion on the motivations.
 You can find the source and documentation at the [Github page](https://github.com/jgoerzen/docker-debian-base)
 and automatic builds are available from [my Docker hub page](https://hub.docker.com/u/jgoerzen/).
 
-For stretch and jessie, this image uses sysvinit instead of systemd,
+**OUDATED**: For stretch and jessie, this image uses sysvinit instead of systemd,
 not because of any particular opinion on the merits of them, but
 rather because sysvinit does not require any kind of privileged Docker
 or cgroups access.
 
-For buster, systemd contains the necessary support for running in an
+For buster and bullseye, systemd contains the necessary support for running in an
 unprivileged Docker container and, as it doesn't require the hacks
 that sysvinit does, is used there.  The systemd and sysvinit images
 provide an identical set of features and installed software, which
@@ -33,7 +33,7 @@ target the standard Linux API.
 Here are the images I provide from this repository:
 
 - [jgoerzen/debian-base-minimal](https://github.com/jgoerzen/docker-debian-base-minimal) - a minimalistic base for you.
-  - Provides working sysvinit, syslogd, cron, anacron, at, and logrotate.
+  - Provides working sysvinit/systemd, syslogd, cron, anacron, at, and logrotate.
   - syslogd is configured to output to the docker log system by default.
 - [jgoerzen/debian-base-standard](https://github.com/jgoerzen/docker-debian-base-standard) - adds some utilities.  Containes everything above, plus:
   - Utilities: less, nano, vim-tiny, man-db (for viewing manpages), net-tools, wget, curl, pwgen, zip, unzip
@@ -65,7 +65,8 @@ Memory usage at boot (stretch):
 
 These tags are autobuilt:
 
- - latest: whatever is stable (currently stretch, sysvinit)
+ - latest: whatever is stable (currently bullseye, systemd)
+ - bullseye: Debian bullseye (systemd)
  - buster: Debian buster (systemd)
  - stretch: Debian stretch (sysvinit) - **no longer supported, may be removed at any time**
  - jessie: Debian jessie (sysvinit) - **no longer supported, may be removed at any time**
@@ -86,16 +87,23 @@ When running, use `-t` to enable the logging to `docker logs`
 A container should be started using these commands, among others.  See
 also the section on environment variables, below.
 
-## Container Invocation, sysvinit containers (jessie/stretch)
+## Container Invocation, systemd containers (buster/bullseye/sis)
 
-    docker run -td --stop-signal=SIGPWR --name=name jgoerzen/debian-base-whatever
-
-## Container Invocation, systemd containers (buster/sid)
+Here's how you invoke for systemd (buster/bullseye) on a system running an older systemd on the host, with cgroups v1:
 
     docker run -td --stop-signal=SIGRTMIN+3 \
       --tmpfs /run:size=100M --tmpfs /run/lock:size=100M \
       -v /sys/fs/cgroup:/sys/fs/cgroup:ro \
       --name=name jgoerzen/debian-base-whatever
+      
+For a host running bullseye, or a newer cgroups and systemd, you have to use this:
+
+    docker run -td --stop-signal=SIGRTMIN+3 \
+      --tmpfs /run:size=100M --tmpfs /run/lock:size=100M \
+      -v /sys/fs/cgroup:/sys/fs/cgroup:rw --cgroupns=host \
+      --name=name jgoerzen/debian-base-whatever
+
+Note that the buster image has not been tested under these situations, and since bullseye is now stable, it is the recommended image for all modern deployments.
 
 The `/run` and `/run/lock` tmpfs are required by systemd.  The 100M
 sets a maximum size, not a default allocation, and serves to limit the
@@ -104,6 +112,19 @@ down from a default limit of 16G.
 
 Note that these images, contrary to many others out there, do NOT
 require `--privileged`.
+
+For more information about the systemd/cgroups situation, consult these links
+
+- https://github.com/systemd/systemd/issues/19245
+- https://github.com/containers/podman/issues/5153
+- https://github.com/moby/moby/issues/42275
+- https://serverfault.com/questions/1053187/systemd-fails-to-run-in-a-docker-container-when-using-cgroupv2-cgroupns-priva/1054414#1054414
+- http://docs.podman.io/en/latest/markdown/podman-run.1.html#cgroupns-mode
+- 
+
+## Container Invocation, sysvinit containers (jessie/stretch)
+
+    docker run -td --stop-signal=SIGPWR --name=name jgoerzen/debian-base-whatever
 
 # Environment Variables
 
@@ -141,7 +162,7 @@ If you start without `--stop-signal`, you can instead use these steps:
 
     # jessie or stretch use this line:
     docker kill -s SIGPWR container
-    # buster or sid use this one:
+    # bullseye, buster or sid use this one:
     docker kill -s SIGRTMIN+3 container
     
     # Either way, then proceed with:
@@ -149,7 +170,7 @@ If you start without `--stop-signal`, you can instead use these steps:
     docker kill container
 
 Within the container, you can call `telinit 1` (jessie/stretch) or
-`poweroff` (buster/sid) to cause the container to shutdown.
+`poweroff` (bullseye/buster/sid) to cause the container to shutdown.
 
 ## Advanted topic: Orderly Shutdown Mechanics
 
@@ -162,7 +183,7 @@ so in all.
 
 A workaround is, howerver, readily available, without modifying init.  These
 images are configured to perform a graceful shutdown upon receiving
-`SIGPWR` (jessie/stretch) or `SIGRTMIN+3` (buster/sid).
+`SIGPWR` (jessie/stretch) or `SIGRTMIN+3` (bullseye/buster/sid).
 
 The process for this with sysvinit is... interesting, since we are
 unable to directly kill PID 1 inside a docker container.  First, init
@@ -177,7 +198,7 @@ This causes PID 1 to finally exit.
 With sysvinit, one of the preinit scripts makes sure that `/sbin/init`
 properly links to `/sbin/init.real` at boot time.
 
-With systemd in buster/sid, no special code for all this is needed;
+With systemd in bullseye/buster/sid, no special code for all this is needed;
 systemd handles it internally with no fuss.
 
 # Configuration
@@ -197,7 +218,7 @@ You can enable or disable services using commands like this
     update-rc.d ssh disable 
     update-rc.d ssh enable
    
-Or this (buster/sid):
+Or this (bullseye/buster/sid):
 
     systemctl disable ssh
     systemctl enable ssh
@@ -221,7 +242,7 @@ files in `/etc/ssh` or make it a volume.
 
 # Advanced topic: programs that depend on disabled scripts (stretch/jessie only)
 
-**This section pertains only to stretch/jessie; systemd in buster/sid
+**This section pertains only to stretch/jessie; systemd in bullseye/buster/sid
   does not have these issues.**
 
 There are a number of scripts in `/etc/init.d` that are normally part
