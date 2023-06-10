@@ -1,4 +1,4 @@
-FROM jgoerzen/debian-base-security:bullseye
+FROM jgoerzen/debian-base-security:bookworm
 MAINTAINER John Goerzen <jgoerzen@complete.org>
 
 COPY setup/ /usr/local/debian-base-setup/
