@@ -1,4 +1,4 @@
-FROM jgoerzen/debian-base-security:bookworm
+FROM jgoerzen/debian-base-security:trixie
 MAINTAINER John Goerzen <jgoerzen@complete.org>
 
 COPY setup/ /usr/local/debian-base-setup/
